@@ -1,0 +1,7 @@
+basicConstraints=CA:FALSE
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+keyUsage=digitalSignature, keyEncipherment
+extendedKeyUsage=clientAuth, emailProtection
+nsCertType=client, email
+nsComment="OpenSSL Generated Client Certificate"

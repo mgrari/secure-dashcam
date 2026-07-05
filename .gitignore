@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.*
+
+# Private keys & certificates
+*.key
+**/private/
+
+# Next.js
+.next/
+/out/
+/build
+
+# Videos
+nodeBackend/videos/
+
+# Misc
+.DS_Store
+*.log
+*.pem
+*.tsbuildinfo
+next-env.d.ts

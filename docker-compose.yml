@@ -1,0 +1,39 @@
+#version: '3.8'
+
+services:
+  nextfrontend:
+    build:
+      context: .
+      dockerfile: ./nextfrontend/Dockerfile  # Pointing to the Dockerfile for the frontend
+    container_name: nextfrontend
+    image: dashcamssd-nextfrontend
+    ports:
+      - "3000:3000"  # Expose port 3000 for the frontend
+    working_dir: /app  # Set the working directory inside the container
+    command: npm run dev --prefix nextfrontend  # Run the frontend app
+
+  nodeBackend:
+    build:
+      context: .
+      dockerfile: ./nodeBackend/Dockerfile  # Pointing to the Dockerfile for the backend
+    container_name: nodeBackend
+    image: dashcamssd-nodebackend
+    ports:
+      - "8080:8080"  # Expose port 8080 for the backend (you can adjust the port number)
+    working_dir: /app  # Set the working directory inside the container
+    command: npm run dev --prefix nodeBackend  # Run the backend app
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodb_data:/data/db
+    command: ["mongod", "--auth"]
+
+volumes:
+  mongodb_data:
