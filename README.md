@@ -1,176 +1,173 @@
+# SecureDashcam
+
+A privacy-first dashcam web application with end-to-end encryption. Video is encrypted in the browser before it ever leaves your device — the server stores only ciphertext and never has access to your keys or footage.
+
+---
+
+## Features
+
+- **End-to-end encrypted video streaming** — video chunks are AES-encrypted client-side every 500ms and streamed to the backend
+- **RSA key pair per user** — generated in the browser at registration; the private key never leaves the client
+- **HMAC integrity checks** — all stored user data (email, name, organization) is integrity-verified on retrieval
+- **TOTP two-factor authentication** — login requires a one-time code from Google Authenticator or any TOTP app
+- **Video sharing** — regular users can share their encrypted videos with trusted users by re-encrypting the symmetric key with the recipient's public key
+- **Two user roles** — regular users (record & view) and trusted users (can receive shared videos)
+- **Full HTTPS** — both frontend and backend run over TLS with a custom certificate chain (Root CA → Intermediate CA → Server)
+- **Dockerized** — the entire stack spins up with a single command
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Backend | Node.js, Express |
+| Database | MongoDB (Mongoose) |
+| Cryptography | Web Crypto API (AES-GCM, RSA-OAEP, HMAC-SHA256) |
+| Auth | JWT + TOTP (speakeasy) |
+| Infrastructure | Docker, Docker Compose |
+
+---
+
+## Security Model
+
+### Key generation (at registration)
+1. An RSA-4096 key pair is generated in the browser
+2. Two AES-256 symmetric keys are generated: one for profile data, one for videos
+3. Two HMAC keys are generated for integrity verification
+4. Each symmetric/HMAC key is encrypted with the user's RSA public key and signed with their RSA private key
+5. Only the encrypted keys and the public key are sent to the server — the private key stays in the browser
+
+### Video encryption (during recording)
+- The browser captures video in 500ms chunks via the MediaRecorder API
+- Each chunk is encrypted with AES-GCM using the user's video symmetric key before being sent
+- The server stores only the encrypted blobs — it cannot decrypt them
+
+### Data integrity
+- Every sensitive profile field (email, fullname, organization, country) is HMAC-signed
+- On retrieval, signatures are verified before decryption — any server-side tampering is detected
+
+### Video sharing
+- When sharing with a trusted user, the video symmetric key is re-encrypted with the recipient's RSA public key
+- The recipient decrypts it with their own private key — no plaintext key is ever transmitted
+
+---
+
 ## Prerequisites
 
-Before running this project, ensure the following requirements are met:
+- [Docker](https://docs.docker.com/get-docker/) with Docker Compose v2.20.2+
+- Make sure no local MongoDB instance is running on port 27017:
+  ```bash
+  sudo systemctl stop mongod
+  ```
 
-1. **Docker**: Installed on your machine.
-   - Install instructions: [Get Docker](https://docs.docker.com/get-docker/)
-   
-2. **Docker Daemon**: Running on your machine.
-   - Start Docker (if required):
-    ```bash
-    sudo systemctl start docker
-    ```
+---
 
-3. **Docker Compose**: Version 2.20.2 or higher is required.
-   - If the script detects Docker Compose is missing, it will install it automatically.
-
-
-## How to Run
-
-
-# Automatic installation
-To start the project, follow these steps:
-
-1. Clone the repository and navigate to the project directory:
-    ```bash
-    git clone https://gitlab.com/MyTricker/dashcamssd
-    cd dashcamssd
-    ```
-
-
-##### Important Note : Ensure that no other instance of MongoDB (mongod) is already running on your machine.
-If another MongoDB instance is active, Docker may encounter conflicts.
-You can check if MongoDB is running with the following command:
+## Quick Start (Docker)
 
 ```bash
-sudo systemctl status mongod
-```
-if it is running, do :
-
-```bash
-sudo systemctl stop mongod
+git clone https://github.com/mgrari/secure-dashcam.git
+cd secure-dashcam
+sudo ./run_docker.sh
 ```
 
+Once running:
+- **Frontend:** https://localhost:3000
+- **Backend:** https://localhost:8080
 
-1. Run the provided script to have all services automatically up and running using Docker Compose:
-    ```bash
-    sudo ./run_docker.sh
-    ```
+> The app uses a self-signed certificate chain. You will need to accept the browser security warning on first visit.
 
-2. Wait for the containers to start. Once the setup is complete, the services will be accessible:
-- Frontend: https://localhost:3000
-- Backend: https://localhost:8080
+---
 
+## Manual Installation
 
-## Optional: Clean Docker Cache
+### 1. MongoDB
 
-To clean up unused Docker images and volumes, uncomment the following lines in run_docker.sh:
-```bash
-# docker system prune -f
-# docker volume prune -f
-```
-
-
-## Logs and monitoring
-
-To check the status of running containers:
-```bash
-docker ps
-```
-
-To view the logs of a specific container:
-```bash
-docker logs <container_name>
-```
-Example:
-```bash
-docker logs nodeBackend
-```
-
-
-
-
-
-
-
-# Manual Installation
-
-To run the entire project, you will need **two separate terminals**:
-
-## Installation of MongoDb
-[Click here](https://www.google.com/search?q=how+to+install+mongodb+&client=firefox-b-d&sca_esv=a4c5c968ead58a07&sxsrf=ADLYWIKBwpWDFZ-_2h6BHKtyumTMkJqG0Q%3A1737312905336&ei=iUqNZ6iIFLni7_UP16fH4AI&ved=0ahUKEwjo8Nf0uoKLAxU58bsIHdfTESwQ4dUDCBA&uact=5&oq=how+to+install+mongodb+&gs_lp=Egxnd3Mtd2l6LXNlcnAiF2hvdyB0byBpbnN0YWxsIG1vbmdvZGIgMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBMggQABiABBjLATIIEAAYgAQYywEyCBAAGIAEGMsBMggQABiABBjLAUirJVC1AVixInACeACQAQCYAVGgAfkEqgEBObgBA8gBAPgBAZgCCqAC1wTCAgoQABiwAxjWBBhHwgINEAAYgAQYsAMYQxiKBcICBxAAGIAEGA3CAgYQABgNGB7CAgkQABiABBgTGA3CAggQABgTGA0YHsICChAAGBMYChgNGB7CAgoQABgTGBYYChgewgIIEAAYExgWGB6YAwDiAwUSATEgQIgGAZAGCpIHAjEwoAesVA&sclient=gws-wiz-serp)
-
-
-you also have to run the `setUpAdminMongo.sh` to create admin user so that the database is even more secure 
+Install MongoDB and create an admin user:
 ```bash
 sudo ./setUpAdminMongo.sh
-``` 
+```
 
-## Terminal 1 (Frontend):
+### 2. Backend
+
+```bash
+cd nodeBackend
+npm install
+npm run dev
+```
+
+Runs on https://localhost:8080
+
+### 3. Frontend
 
 ```bash
 cd nextfrontend
 npm install
 npm run dev
 ```
-The frontend (Next.js) will run by default on port 3000 (https://localhost:3000).
 
-## Terminal 2 (Backend):
+Runs on https://localhost:3000
 
+---
 
-
-```bash
-cd nodeBackend
-npm install
-npm run dev
+## Project Structure
 
 ```
-
-### INFO
-The Node.js backend will run by default on port 8080 (https://localhost:8080).
-
-Requests made by the frontend to the server should point to port 8080.
-
-### !!!
-The `npm run dev` command uses `nodemon` in the background. This automatically restarts the server whenever you save a file (`ctrl+s`), which is a huge time saver.
-
----
-
-# How Do Routes Work in Next.js?
-
-In Next.js (version 13+ with the `app/` directory), pages and routes are generally created based on the directory and file structure:
-
-- **`app/page.tsx`**: The root page.
-- **`app/testpageexample/page.tsx`**: A page accessible at `/testpageexample`.
-
-If you do not need to modify the frontend, leave these files as is.  
-The key takeaway is that Next.js manages pages through the folder structure, without requiring explicit routing configuration. You can add a new page simply by creating a new folder and an associated `page.tsx` file.
-
----
-
-# Ports
-
-- **Frontend (Next.js)**: https://localhost:3000  
-- **Backend (Node.js)**: https://localhost:8080  
-
-All server requests (using `fetch`, `axios`, etc.) will be made on port `8080`.
+secure-dashcam/
+├── nextfrontend/          # Next.js frontend
+│   ├── app/               # Pages (App Router)
+│   │   ├── dashcam/       # Live recording page
+│   │   ├── home/          # Regular user dashboard
+│   │   ├── hometrusted/   # Trusted user dashboard
+│   │   ├── videos/        # Video playback
+│   │   ├── users/         # Share access with trusted users
+│   │   ├── register/      # Registration
+│   │   └── login/         # Login
+│   ├── crypto/            # Client-side crypto utilities
+│   │   ├── handlers.js    # High-level crypto flows
+│   │   ├── rsaUtils.js    # RSA key generation, encryption, signing
+│   │   └── symKeyUtils.js # AES & HMAC operations
+│   └── components/        # UI components
+├── nodeBackend/           # Express backend
+│   ├── controllers/       # Route handlers
+│   ├── middleware/        # JWT validation
+│   ├── models/            # Mongoose schemas
+│   ├── routes/            # API routes
+│   ├── logging/           # Logger setup
+│   └── certificates/      # TLS certificate chain
+└── docker-compose.yml
+```
 
 ---
 
-# Frontend & Backend
+## API Overview
 
-- **Frontend (Next.js)**:  
-  The `nextfrontend` folder contains the frontend code. Next.js is a React framework that enables building web applications with server-side rendering, simplified routing, and advanced features integration (SSR, SSG, etc.).
-
-- **Backend (Node.js)**:  
-  The `nodeBackend` folder contains the backend code in Node.js (e.g., `server.js`). It is a classic Node.js server, potentially using Express or another HTTP framework, handling server-side API requests.
-
----
-
-# Advantages of Next.js
-
-Next.js offers numerous advantages, including:
-
-- **Server-Side Rendering (SSR)**: Enables faster loading and better SEO (search engine indexing).
-- **Simplified Routing System**: File-based routing makes creating new pages straightforward.
-- **TypeScript Integration**: Easily supports TypeScript, making code more maintainable and robust.
-- **Hot Reloading**: The server automatically updates when you modify files, accelerating development.
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/user/register` | Register a new user |
+| POST | `/api/user/login` | Login with TOTP code |
+| GET | `/api/user/current` | Get current user info |
+| POST | `/stream` | Upload an encrypted video chunk |
+| GET | `/getSymetric` | Retrieve user's encrypted symmetric key |
+| GET | `/api/video/list` | List user's videos |
+| GET | `/api/video/:name/:username/chunks` | Fetch encrypted chunks for a video |
+| DELETE | `/api/video/:name` | Delete a video |
+| GET | `/api/users/list` | List trusted users available to share with |
+| POST | `/api/users/share` | Share videos with a trusted user |
+| GET | `/api/video/trustedList` | List videos shared with the current trusted user |
 
 ---
 
-# Conclusion
+## Monitoring & Logs
 
-- Use **two terminals**: one for the frontend (Next.js, port 3000) and one for the backend (Node.js, port 8080).
-- Focus on implementing your business logic and API endpoints in the Node.js backend.
-- All requests are made to the backend on port 8080.
-- Next.js simplifies page creation and server-side rendering, but if you don't need it, concentrate on the Node.js part.
+```bash
+# Check running containers
+docker ps
+
+# View backend logs
+docker logs nodeBackend
+
+# View frontend logs
+docker logs nextfrontend
+```
